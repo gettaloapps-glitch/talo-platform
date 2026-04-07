@@ -201,7 +201,7 @@ export default function HomeScreen() {
       category: t(
         `expense.categories.${normalizeExpenseCategory(item.category)}`
       ),
-      total: item.amount,
+      total: Math.round(item.amount),
       percentage: item.share,
     }));
   }, [dashboardData.categoryBreakdown, t, locale]);
@@ -457,7 +457,7 @@ export default function HomeScreen() {
                   <SummaryCard
                     key={`summary-total-${locale}`}
                     label={t('dashboard.totalSpent')}
-                    value={dashboardData.totalSpent}
+                    value={Math.round(dashboardData.totalSpent)}
                     type="currency"
                     currency={currency}
                   />
@@ -465,7 +465,7 @@ export default function HomeScreen() {
                   <SummaryCard
                     key={`summary-exceptional-${locale}`}
                     label={t('dashboard.exceptional')}
-                    value={dashboardData.exceptionalTotal}
+                    value={Math.round(dashboardData.exceptionalTotal)}
                     type="currency"
                     currency={currency}
                   />
@@ -485,7 +485,7 @@ export default function HomeScreen() {
                   <SummaryCard
                     key={`summary-average-${locale}-${selectedPeriod}`}
                     label={t('dashboard.averageExpense')}
-                    value={dashboardData.averageExpense}
+                    value={Math.round(dashboardData.averageExpense)}
                     type="currency"
                     currency={currency}
                     trend={averageExpenseTrend.trend}
@@ -495,7 +495,7 @@ export default function HomeScreen() {
                   <SummaryCard
                     key={`summary-daily-${locale}-${selectedPeriod}`}
                     label={t('dashboard.dailyAverage')}
-                    value={dashboardData.dailyAverage}
+                    value={Math.round(dashboardData.dailyAverage)}
                     type="currency"
                     currency={currency}
                     trend={dailyAverageTrend.trend}
@@ -509,7 +509,7 @@ export default function HomeScreen() {
                         ? t('dashboard.projectedTotal')
                         : t('dashboard.monthTotal')
                     }
-                    value={dashboardData.projectedTotal}
+                    value={Math.round(dashboardData.projectedTotal)}
                     type="currency"
                     currency={currency}
                     trend={projectedTrend.trend}
@@ -549,7 +549,10 @@ export default function HomeScreen() {
                           </Text>
                           <View style={styles.topCategoryValueGroup}>
                             <Text style={styles.topCategoryValue}>
-                              {formatCompactCurrency(category.total, currency)} ·{' '}
+                              {formatCompactCurrency(
+                                Math.round(category.total),
+                                currency
+                              )} ·{' '}
                               {category.percentage.toFixed(0)}%
                             </Text>
                             <Text

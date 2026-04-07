@@ -110,6 +110,225 @@ function buildDateFormatters(locale: string): LocalizedDateFormatter {
   };
 }
 
+type ExpensesListHeaderProps = {
+  t: (key: string) => string;
+  title: string;
+  searchQuery: string;
+  onChangeSearchQuery: (value: string) => void;
+  monthOptions: { label: string; value: string }[];
+  selectedMonth: MonthFilterOption;
+  openDropdown: OpenDropdown;
+  onToggleMonthDropdown: () => void;
+  onSelectMonth: (value: string) => void;
+  categoryOptions: { label: string; value: string }[];
+  selectedCategory: ExpenseCategory | 'all';
+  onToggleCategoryDropdown: () => void;
+  onSelectCategory: (value: string) => void;
+  isAnyDropdownOpen: boolean;
+  quickFilters: { label: string; value: QuickFilterOption }[];
+  quickFilter: QuickFilterOption;
+  onSelectQuickFilter: (value: QuickFilterOption) => void;
+  sortOptions: { label: string; value: SortOption }[];
+  sortBy: SortOption;
+  onSelectSortBy: (value: SortOption) => void;
+  filteredTotal: number;
+  currency: CurrencyCode;
+  filteredExpensesLength: number;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+  sortedExpensesLength: number;
+  onExport: () => void;
+};
+
+const ExpensesListHeader = React.memo(function ExpensesListHeader({
+  t,
+  title,
+  searchQuery,
+  onChangeSearchQuery,
+  monthOptions,
+  selectedMonth,
+  openDropdown,
+  onToggleMonthDropdown,
+  onSelectMonth,
+  categoryOptions,
+  selectedCategory,
+  onToggleCategoryDropdown,
+  onSelectCategory,
+  isAnyDropdownOpen,
+  quickFilters,
+  quickFilter,
+  onSelectQuickFilter,
+  sortOptions,
+  sortBy,
+  onSelectSortBy,
+  filteredTotal,
+  currency,
+  filteredExpensesLength,
+  hasActiveFilters,
+  onClearFilters,
+  sortedExpensesLength,
+  onExport,
+}: ExpensesListHeaderProps) {
+  return (
+    <View style={styles.screenContent}>
+      <View style={styles.topActionsRow}>
+        <Text style={styles.title}>{title}</Text>
+
+        <Pressable
+          style={[
+            styles.exportButton,
+            sortedExpensesLength === 0 && { opacity: 0.5 },
+          ]}
+          onPress={onExport}
+          disabled={sortedExpensesLength === 0}
+        >
+          <Text style={styles.exportButtonText}>{t('expenses.exportCsv')}</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.searchWrapper}>
+        <TextInput
+          value={searchQuery}
+          onChangeText={onChangeSearchQuery}
+          placeholder={t('expenses.searchPlaceholder')}
+          placeholderTextColor={colors.textSecondary}
+          style={styles.searchInput}
+        />
+      </View>
+
+      <View style={styles.filtersSection}>
+        <View style={styles.filtersRow}>
+          <View style={styles.filterHalf}>
+            <FilterDropdown
+              label={t('expenses.month')}
+              options={monthOptions}
+              selectedValue={selectedMonth}
+              isOpen={openDropdown === 'month'}
+              onToggle={onToggleMonthDropdown}
+              onSelect={onSelectMonth}
+            />
+          </View>
+
+          <View style={styles.filterHalf}>
+            <FilterDropdown
+              label={t('expenses.category')}
+              options={categoryOptions}
+              selectedValue={selectedCategory}
+              isOpen={openDropdown === 'category'}
+              onToggle={onToggleCategoryDropdown}
+              onSelect={onSelectCategory}
+            />
+          </View>
+        </View>
+
+        {!isAnyDropdownOpen ? (
+          <>
+            <View style={styles.filterBlock}>
+              <Text style={styles.blockLabel}>{t('expenses.quickFilters')}</Text>
+
+              <View style={styles.quickFiltersRow}>
+                {quickFilters.map((filter) => {
+                  const isActive = quickFilter === filter.value;
+
+                  return (
+                    <Pressable
+                      key={filter.value}
+                      style={[
+                        styles.quickChip,
+                        {
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          minHeight: 32,
+                        },
+                        isActive && styles.quickChipActive,
+                      ]}
+                      onPress={() => onSelectQuickFilter(filter.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.quickChipText,
+                          { fontSize: 12 },
+                          isActive && styles.quickChipTextActive,
+                        ]}
+                      >
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.filterBlock}>
+              <Text style={styles.blockLabel}>{t('expenses.sortBy')}</Text>
+
+              <View style={styles.sortRow}>
+                {sortOptions.map((option) => {
+                  const isActive = sortBy === option.value;
+
+                  return (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.sortChip,
+                        {
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          minHeight: 32,
+                        },
+                        isActive && styles.sortChipActive,
+                      ]}
+                      onPress={() => onSelectSortBy(option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.sortChipText,
+                          { fontSize: 12 },
+                          isActive && styles.sortChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        ) : null}
+      </View>
+
+      <View style={styles.filteredSummary}>
+        <View>
+          <Text style={styles.filteredLabel}>{t('expenses.filteredTotal')}</Text>
+          <Text style={styles.filteredTotal}>
+            {formatCurrency(filteredTotal, currency)}
+          </Text>
+        </View>
+
+        <View style={styles.summaryRight}>
+          <Text style={styles.filteredCount}>
+            {filteredExpensesLength}{' '}
+            {filteredExpensesLength === 1
+              ? t('expenses.expenseSingular')
+              : t('expenses.expensePlural')}
+          </Text>
+
+          {hasActiveFilters ? (
+            <Pressable onPress={onClearFilters} hitSlop={8}>
+              <Text style={styles.clearText}>{t('expenses.clearFilters')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {sortedExpensesLength > 1 ? (
+        <Text style={styles.listHint}>{t('expenses.swipeHint')}</Text>
+      ) : null}
+    </View>
+  );
+});
+
 export default function ExpensesScreen() {
   const { t, locale } = useTranslation();
 
@@ -451,181 +670,93 @@ export default function ExpensesScreen() {
     );
   };
 
-  const renderListHeader = () => (
-    <View style={styles.screenContent}>
-      <View style={styles.topActionsRow}>
-        <Text style={styles.title}>{t('expenses.title')}</Text>
+  const handleToggleMonthDropdown = useCallback(() => {
+    Keyboard.dismiss();
+    toggleDropdown('month');
+  }, []);
 
-        <Pressable
-          style={[
-            styles.exportButton,
-            sortedExpenses.length === 0 && { opacity: 0.5 },
-          ]}
-          onPress={handleExport}
-          disabled={sortedExpenses.length === 0}
-        >
-          <Text style={styles.exportButtonText}>{t('expenses.exportCsv')}</Text>
-        </Pressable>
-      </View>
+  const handleSelectMonth = useCallback((value: string) => {
+    setSelectedMonth(value);
+    setOpenDropdown(null);
+  }, []);
 
-      <View style={styles.searchWrapper}>
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={t('expenses.searchPlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          style={styles.searchInput}
-        />
-      </View>
+  const handleToggleCategoryDropdown = useCallback(() => {
+    Keyboard.dismiss();
+    toggleDropdown('category');
+  }, []);
 
-      <View style={styles.filtersSection}>
-        <View style={styles.filtersRow}>
-          <View style={styles.filterHalf}>
-            <FilterDropdown
-              label={t('expenses.month')}
-              options={monthOptions}
-              selectedValue={selectedMonth}
-              isOpen={openDropdown === 'month'}
-              onToggle={() => {
-                Keyboard.dismiss();
-                toggleDropdown('month');
-              }}
-              onSelect={(value: string) => {
-                setSelectedMonth(value);
-                setOpenDropdown(null);
-              }}
-            />
-          </View>
+  const handleSelectCategory = useCallback((value: string) => {
+    setSelectedCategory(value as ExpenseCategory | 'all');
+    setOpenDropdown(null);
+  }, []);
 
-          <View style={styles.filterHalf}>
-            <FilterDropdown
-              label={t('expenses.category')}
-              options={categoryOptions}
-              selectedValue={selectedCategory}
-              isOpen={openDropdown === 'category'}
-              onToggle={() => {
-                Keyboard.dismiss();
-                toggleDropdown('category');
-              }}
-              onSelect={(value: string) => {
-                setSelectedCategory(value as ExpenseCategory | 'all');
-                setOpenDropdown(null);
-              }}
-            />
-          </View>
-        </View>
+  const handleSelectQuickFilter = useCallback((value: QuickFilterOption) => {
+    Keyboard.dismiss();
+    setQuickFilter(value);
+  }, []);
 
-        {!isAnyDropdownOpen ? (
-          <>
-            <View style={styles.filterBlock}>
-              <Text style={styles.blockLabel}>{t('expenses.quickFilters')}</Text>
+  const handleSelectSortBy = useCallback((value: SortOption) => {
+    Keyboard.dismiss();
+    setSortBy(value);
+  }, []);
 
-              <View style={styles.quickFiltersRow}>
-                {QUICK_FILTERS.map((filter) => {
-                  const isActive = quickFilter === filter.value;
-
-                  return (
-                    <Pressable
-                      key={filter.value}
-                      style={[
-                        styles.quickChip,
-                        {
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          minHeight: 32,
-                        },
-                        isActive && styles.quickChipActive,
-                      ]}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setQuickFilter(filter.value);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.quickChipText,
-                          { fontSize: 12 },
-                          isActive && styles.quickChipTextActive,
-                        ]}
-                      >
-                        {filter.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.filterBlock}>
-              <Text style={styles.blockLabel}>{t('expenses.sortBy')}</Text>
-
-              <View style={styles.sortRow}>
-                {SORT_OPTIONS.map((option) => {
-                  const isActive = sortBy === option.value;
-
-                  return (
-                    <Pressable
-                      key={option.value}
-                      style={[
-                        styles.sortChip,
-                        {
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          minHeight: 32,
-                        },
-                        isActive && styles.sortChipActive,
-                      ]}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSortBy(option.value);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.sortChipText,
-                          { fontSize: 12 },
-                          isActive && styles.sortChipTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          </>
-        ) : null}
-      </View>
-
-      <View style={styles.filteredSummary}>
-        <View>
-          <Text style={styles.filteredLabel}>{t('expenses.filteredTotal')}</Text>
-          <Text style={styles.filteredTotal}>
-            {formatCurrency(filteredTotal, currency)}
-          </Text>
-        </View>
-
-        <View style={styles.summaryRight}>
-          <Text style={styles.filteredCount}>
-            {filteredExpenses.length}{' '}
-            {filteredExpenses.length === 1
-              ? t('expenses.expenseSingular')
-              : t('expenses.expensePlural')}
-          </Text>
-
-          {hasActiveFilters ? (
-            <Pressable onPress={handleClearFilters} hitSlop={8}>
-              <Text style={styles.clearText}>{t('expenses.clearFilters')}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      {sortedExpenses.length > 1 ? (
-        <Text style={styles.listHint}>{t('expenses.swipeHint')}</Text>
-      ) : null}
-    </View>
+  const listHeader = useMemo(
+    () => (
+      <ExpensesListHeader
+        t={t}
+        title={t('expenses.title')}
+        searchQuery={searchQuery}
+        onChangeSearchQuery={setSearchQuery}
+        monthOptions={monthOptions}
+        selectedMonth={selectedMonth}
+        openDropdown={openDropdown}
+        onToggleMonthDropdown={handleToggleMonthDropdown}
+        onSelectMonth={handleSelectMonth}
+        categoryOptions={categoryOptions}
+        selectedCategory={selectedCategory}
+        onToggleCategoryDropdown={handleToggleCategoryDropdown}
+        onSelectCategory={handleSelectCategory}
+        isAnyDropdownOpen={isAnyDropdownOpen}
+        quickFilters={QUICK_FILTERS}
+        quickFilter={quickFilter}
+        onSelectQuickFilter={handleSelectQuickFilter}
+        sortOptions={SORT_OPTIONS}
+        sortBy={sortBy}
+        onSelectSortBy={handleSelectSortBy}
+        filteredTotal={filteredTotal}
+        currency={currency}
+        filteredExpensesLength={filteredExpenses.length}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={handleClearFilters}
+        sortedExpensesLength={sortedExpenses.length}
+        onExport={handleExport}
+      />
+    ),
+    [
+      t,
+      searchQuery,
+      monthOptions,
+      selectedMonth,
+      openDropdown,
+      handleToggleMonthDropdown,
+      handleSelectMonth,
+      categoryOptions,
+      selectedCategory,
+      handleToggleCategoryDropdown,
+      handleSelectCategory,
+      isAnyDropdownOpen,
+      QUICK_FILTERS,
+      quickFilter,
+      handleSelectQuickFilter,
+      SORT_OPTIONS,
+      sortBy,
+      handleSelectSortBy,
+      filteredTotal,
+      currency,
+      filteredExpenses.length,
+      hasActiveFilters,
+      sortedExpenses.length,
+    ]
   );
 
   const renderEmptyState = () => (
@@ -649,7 +780,7 @@ export default function ExpensesScreen() {
     <FlatList
       data={groupedExpensesArray}
       keyExtractor={(item) => item[0]}
-      ListHeaderComponent={renderListHeader}
+      ListHeaderComponent={listHeader}
       ListEmptyComponent={renderEmptyState}
       renderItem={({ item }) => {
         const [month, monthExpenses] = item;
@@ -677,7 +808,7 @@ export default function ExpensesScreen() {
     <FlatList
       data={sortedExpenses}
       keyExtractor={(item) => item.id}
-      ListHeaderComponent={renderListHeader}
+      ListHeaderComponent={listHeader}
       ListEmptyComponent={renderEmptyState}
       renderItem={({ item, index }) => renderExpenseCard(item, index === 0)}
       style={{ flex: 1 }}

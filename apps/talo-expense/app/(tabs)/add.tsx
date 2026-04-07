@@ -63,6 +63,34 @@ function getCurrencyPrefix(currency: CurrencyCode): string {
   }
 }
 
+function normalizeAmountInput(value: string) {
+  const sanitized = value.replace(/[^\d.]/g, '');
+
+  if (!sanitized) {
+    return '';
+  }
+
+  const firstSeparatorIndex = sanitized.indexOf('.');
+  const hasSeparator = firstSeparatorIndex !== -1;
+  const integerPartRaw = hasSeparator
+    ? sanitized.slice(0, firstSeparatorIndex)
+    : sanitized;
+  const decimalPartRaw = hasSeparator
+    ? sanitized
+      .slice(firstSeparatorIndex + 1)
+      .replace(/\./g, '')
+      .slice(0, 2)
+    : '';
+
+  const integerPart = integerPartRaw || (hasSeparator ? '0' : '');
+
+  if (!integerPart) {
+    return '';
+  }
+
+  return hasSeparator ? `${integerPart}.${decimalPartRaw}` : integerPart;
+}
+
 export default function AddScreen() {
   const params = useLocalSearchParams<{ expenseId?: string }>();
   const expenseId =
@@ -94,13 +122,6 @@ export default function AddScreen() {
   const [toastMessage, setToastMessage] = useState('');
   const [recentCategories, setRecentCategories] = useState<ExpenseCategory[]>([]);
   const isEditMode = Boolean(expenseId);
-
-
-  const formatAmount = (value: string) => {
-    const numeric = value.replace(/\D/g, '');
-    if (!numeric) return '';
-    return numeric.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
 
   const getRecentCategoriesFromExpenses = useCallback((expenses: Expense[]) => {
     return [...expenses]
@@ -144,7 +165,7 @@ export default function AddScreen() {
         }
 
         setAmount(expense.amount);
-        setAmountFormatted(formatAmount(String(expense.amount)));
+        setAmountFormatted(normalizeAmountInput(String(expense.amount)));
         setCategory(expense.category);
         setDescription(expense.description ?? '');
         setIsExceptional(expense.exceptional);
@@ -406,15 +427,15 @@ export default function AddScreen() {
               ref={amountInputRef}
               style={[styles.amount, isFormDisabled && styles.inputDisabled]}
               placeholder={`${currencyPrefix} 0`}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               placeholderTextColor={colors.textSecondary}
               selectionColor={colors.primary}
-              value={amountFormatted ? `${currencyPrefix} ${amountFormatted}` : ''}
+              value={amountFormatted}
               editable={!isFormDisabled}
               onChangeText={(text) => {
-                const numeric = text.replace(/\D/g, '');
-                setAmount(Number(numeric));
-                setAmountFormatted(formatAmount(numeric));
+                const normalized = normalizeAmountInput(text);
+                setAmount(normalized ? Number(normalized) : 0);
+                setAmountFormatted(normalized);
               }}
               returnKeyType="done"
             />

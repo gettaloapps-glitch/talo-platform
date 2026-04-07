@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { deactivateKeepAwake } from 'expo-keep-awake';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -22,15 +23,16 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-  async function initSettings() {
-    await getSettings({
-      currency: detectDeviceCurrency(),
-      language: detectDeviceLanguage(),
-    });
-  }
+    async function initSettings() {
+      await getSettings({
+        currency: detectDeviceCurrency(),
+        language: detectDeviceLanguage(),
+      });
+    }
 
-  initSettings();
-}, []);
+    void initSettings();
+    void deactivateKeepAwake();
+  }, []);
 
 
   return (

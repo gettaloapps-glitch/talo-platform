@@ -270,6 +270,8 @@ export default function SettingsScreen() {
                 keyExtractor={(item) => item.code}
                 style={styles.currencyList}
                 contentContainerStyle={styles.currencyListContent}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item: option }) => {
                   const isSelected = option.code === currency;
@@ -462,13 +464,12 @@ const styles = StyleSheet.create({
   },
 
   currencyListContainer: {
-    flex: 1,
-    minHeight: 0,
+    maxHeight: 320,
     marginBottom: 16,
   },
 
   currencyList: {
-    flex: 1,
+    width: '100%',
   },
 
   currencyListContent: {
