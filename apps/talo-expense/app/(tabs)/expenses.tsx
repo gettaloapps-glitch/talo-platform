@@ -1,8 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   Keyboard,
   Pressable,
@@ -124,6 +125,8 @@ export default function ExpensesScreen() {
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  const swipeHintTranslateX = useRef(new Animated.Value(0)).current;
+  const hasPlayedSwipeHint = useRef(false);
 
   const { formatDisplayDate, getMonthLabel, formatMonthKeyLabel } = useMemo(
     () => buildDateFormatters(locale),
@@ -335,6 +338,28 @@ export default function ExpensesScreen() {
     [groupedExpenses]
   );
 
+  useEffect(() => {
+    if (sortedExpenses.length === 0 || hasPlayedSwipeHint.current) {
+      return;
+    }
+
+    hasPlayedSwipeHint.current = true;
+
+    Animated.sequence([
+      Animated.delay(120),
+      Animated.timing(swipeHintTranslateX, {
+        toValue: -20,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(swipeHintTranslateX, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [sortedExpenses.length, swipeHintTranslateX]);
+
   const toggleDropdown = (dropdown: OpenDropdown) => {
     setOpenDropdown((current) => (current === dropdown ? null : dropdown));
   };
@@ -369,8 +394,13 @@ export default function ExpensesScreen() {
     </Pressable>
   );
 
-  const renderExpenseCard = (expense: Expense) => {
+  const renderExpenseCard = (expense: Expense, animateHint = false) => {
     const normalizedCategory = normalizeExpenseCategory(expense.category);
+    const cardWrapperStyle = animateHint
+      ? {
+        transform: [{ translateX: swipeHintTranslateX }],
+      }
+      : undefined;
 
     return (
       <Swipeable
@@ -384,7 +414,7 @@ export default function ExpensesScreen() {
         overshootLeft={false}
         overshootRight={false}
       >
-        <View style={styles.expenseCardWrapper}>
+        <Animated.View style={[styles.expenseCardWrapper, cardWrapperStyle]}>
           <View style={styles.expenseCard}>
             <View style={styles.cardTopRow}>
               <View style={styles.cardTopLeft}>
@@ -416,16 +446,16 @@ export default function ExpensesScreen() {
               ) : null}
             </View>
           </View>
-        </View>
+        </Animated.View>
       </Swipeable>
     );
   };
 
   const renderListHeader = () => (
     <View style={styles.screenContent}>
-      <Text style={styles.title}>{t('expenses.title')}</Text>
-
       <View style={styles.topActionsRow}>
+        <Text style={styles.title}>{t('expenses.title')}</Text>
+
         <Pressable
           style={[
             styles.exportButton,
@@ -627,7 +657,9 @@ export default function ExpensesScreen() {
         return (
           <View style={styles.monthSection}>
             <Text style={styles.monthTitle}>{month}</Text>
-            {monthExpenses.map((expense) => renderExpenseCard(expense))}
+            {monthExpenses.map((expense, index) =>
+              renderExpenseCard(expense, item[0] === groupedExpensesArray[0]?.[0] && index === 0)
+            )}
           </View>
         );
       }}
@@ -647,7 +679,7 @@ export default function ExpensesScreen() {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={renderListHeader}
       ListEmptyComponent={renderEmptyState}
-      renderItem={({ item }) => renderExpenseCard(item)}
+      renderItem={({ item, index }) => renderExpenseCard(item, index === 0)}
       style={{ flex: 1 }}
       contentContainerStyle={styles.listContent}
       keyboardShouldPersistTaps="handled"
@@ -680,26 +712,29 @@ const styles = StyleSheet.create({
 
   screenContent: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 14,
   },
 
   title: {
-    fontSize: 28,
+    flex: 1,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.textMain,
-    marginBottom: 16,
   },
 
   topActionsRow: {
     flexDirection: 'row',
-    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 12,
   },
 
   exportButton: {
     backgroundColor: colors.card,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -707,15 +742,15 @@ const styles = StyleSheet.create({
   exportButtonText: {
     color: colors.textMain,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
 
   searchWrapper: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
 
   searchInput: {
-    height: 48,
+    height: 44,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -726,7 +761,7 @@ const styles = StyleSheet.create({
   },
 
   filtersSection: {
-    marginBottom: 14,
+    marginBottom: 8,
   },
 
   filtersRow: {
@@ -739,14 +774,14 @@ const styles = StyleSheet.create({
   },
 
   filterBlock: {
-    marginTop: 12,
+    marginTop: 10,
   },
 
   blockLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 6,
   },
 
   quickFiltersRow: {
@@ -810,9 +845,10 @@ const styles = StyleSheet.create({
   },
 
   filteredSummary: {
-    marginBottom: 10,
-    padding: 16,
-    borderRadius: 16,
+    marginBottom: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -822,15 +858,15 @@ const styles = StyleSheet.create({
   },
 
   filteredLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: 0.3,
   },
 
   filteredTotal: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.textMain,
   },
@@ -840,13 +876,13 @@ const styles = StyleSheet.create({
   },
 
   filteredCount: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
 
   clearText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
   },
@@ -854,7 +890,7 @@ const styles = StyleSheet.create({
   listHint: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 14,
+    marginBottom: 8,
   },
 
   listContent: {
@@ -863,6 +899,7 @@ const styles = StyleSheet.create({
   },
 
   monthSection: {
+    marginTop: 8,
     marginBottom: 22,
   },
 
@@ -883,7 +920,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
-    padding: 12,
+    padding: 10,
   },
 
   cardTopRow: {

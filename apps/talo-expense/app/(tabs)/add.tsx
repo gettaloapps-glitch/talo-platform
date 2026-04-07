@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   EXPENSE_CATEGORIES,
+  EXPENSE_CATEGORY_ICONS,
   ExpenseCategory,
 } from '../../src/constants/categories';
 import {
@@ -380,14 +381,19 @@ export default function AddScreen() {
                         ]}
                         onPress={() => setCategory(item)}
                       >
-                        <Text
-                          style={[
-                            styles.recentCategoryChipText,
-                            isSelected && styles.recentCategoryChipTextSelected,
-                          ]}
-                        >
-                          {t(`expense.categories.${item}`)}
-                        </Text>
+                        <View style={styles.chipContent}>
+                          <Text style={styles.chipIcon}>
+                            {EXPENSE_CATEGORY_ICONS[item]}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.recentCategoryChipText,
+                              isSelected && styles.recentCategoryChipTextSelected,
+                            ]}
+                          >
+                            {t(`expense.categories.${item}`)}
+                          </Text>
+                        </View>
                       </Pressable>
                     );
                   })}
@@ -401,7 +407,8 @@ export default function AddScreen() {
               style={[styles.amount, isFormDisabled && styles.inputDisabled]}
               placeholder={`${currencyPrefix} 0`}
               keyboardType="numeric"
-              placeholderTextColor={colors.placeholder}
+              placeholderTextColor={colors.textSecondary}
+              selectionColor={colors.primary}
               value={amountFormatted ? `${currencyPrefix} ${amountFormatted}` : ''}
               editable={!isFormDisabled}
               onChangeText={(text) => {
@@ -431,14 +438,19 @@ export default function AddScreen() {
                     ]}
                     onPress={() => setCategory(item)}
                   >
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        isSelected && styles.categoryChipTextSelected,
-                      ]}
-                    >
-                      {t(`expense.categories.${item}`)}
-                    </Text>
+                    <View style={styles.chipContent}>
+                      <Text style={styles.chipIcon}>
+                        {EXPENSE_CATEGORY_ICONS[item]}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          isSelected && styles.categoryChipTextSelected,
+                        ]}
+                      >
+                        {t(`expense.categories.${item}`)}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -493,7 +505,8 @@ export default function AddScreen() {
                 isFormDisabled && styles.inputDisabled,
               ]}
               placeholder={t('expense.optionalDescription')}
-              placeholderTextColor={colors.placeholder}
+              placeholderTextColor={colors.textSecondary}
+              selectionColor={colors.primary}
               value={description}
               editable={!isFormDisabled}
               onChangeText={setDescription}
@@ -732,6 +745,15 @@ const styles = StyleSheet.create({
 
   recentCategoryChipTextSelected: {
     color: colors.primary,
+  },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  chipIcon: {
+    fontSize: 14,
+    lineHeight: 18,
   },
   dateInput: {
     minHeight: 46,

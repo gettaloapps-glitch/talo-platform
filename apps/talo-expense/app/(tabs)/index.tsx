@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -33,7 +33,16 @@ import {
 } from '../../src/services/budgetService';
 import { getDashboardData } from '../../src/services/dashboardService';
 import { getAllExpenses } from '../../src/services/expensesService';
-import type { DashboardPeriod, Expense } from '../../src/types/expense';
+import type {
+  DashboardExpenseFilter,
+  DashboardPeriod,
+  Expense,
+} from '../../src/types/expense';
+import {
+  getCategoryAmountMap,
+  getCategoryTrend,
+  getPreviousPeriodExpenses,
+} from '../../src/utils/categoryInsights';
 import { formatDisplayDate } from '../../src/utils/date';
 import type { ExpenseCategory } from '../../src/constants/categories';
 
@@ -120,6 +129,8 @@ export default function HomeScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedPeriod, setSelectedPeriod] =
     useState<DashboardPeriod>('thisMonth');
+  const [selectedExpenseFilter, setSelectedExpenseFilter] =
+    useState<DashboardExpenseFilter>('all');
   const [budgetSummary, setBudgetSummary] = useState<MonthlyBudgetSummary | null>(
     null
   );
@@ -135,14 +146,6 @@ export default function HomeScreen() {
 
     setExpenses(savedExpenses);
     setCurrency(settings.currency);
-
-    const currentMonthSpent = getDashboardData(
-      savedExpenses,
-      'thisMonth'
-    ).totalSpent;
-
-    const summary = await getMonthlyBudgetSummary(currentMonthSpent);
-    setBudgetSummary(summary);
   }, []);
 
   useFocusEffect(
@@ -151,9 +154,32 @@ export default function HomeScreen() {
     }, [loadExpenses])
   );
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadBudgetSummary = async () => {
+      const currentMonthSpent = getDashboardData(
+        expenses,
+        'thisMonth',
+        selectedExpenseFilter
+      ).totalSpent;
+      const summary = await getMonthlyBudgetSummary(currentMonthSpent);
+
+      if (isActive) {
+        setBudgetSummary(summary);
+      }
+    };
+
+    void loadBudgetSummary();
+
+    return () => {
+      isActive = false;
+    };
+  }, [expenses, selectedExpenseFilter]);
+
   const dashboardData = useMemo(() => {
-    return getDashboardData(expenses, selectedPeriod);
-  }, [expenses, selectedPeriod]);
+    return getDashboardData(expenses, selectedPeriod, selectedExpenseFilter);
+  }, [expenses, selectedPeriod, selectedExpenseFilter]);
 
   const translatedTopCategory = useMemo(() => {
     const rawTopCategory = dashboardData.categoryBreakdown[0];
@@ -179,6 +205,39 @@ export default function HomeScreen() {
       percentage: item.share,
     }));
   }, [dashboardData.categoryBreakdown, t, locale]);
+
+  const previousPeriodCategoryTotals = useMemo(() => {
+    return getCategoryAmountMap(
+      getPreviousPeriodExpenses(
+        expenses,
+        selectedPeriod,
+        selectedExpenseFilter
+      )
+    );
+  }, [expenses, selectedPeriod, selectedExpenseFilter]);
+
+  const topCategories = useMemo(() => {
+    return [...dashboardData.categoryBreakdown]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 3)
+      .map((category) => {
+        const translatedCategory = t(
+          `expense.categories.${normalizeExpenseCategory(category.category)}`
+        );
+        const previousAmount = previousPeriodCategoryTotals[category.category] ?? 0;
+
+        return {
+          category: translatedCategory,
+          total: category.amount,
+          percentage: category.share,
+          trend: getCategoryTrend(
+            category.amount,
+            previousAmount,
+            t('dashboard.newCategoryTrend')
+          ),
+        };
+      });
+  }, [dashboardData.categoryBreakdown, previousPeriodCategoryTotals, t, locale]);
 
   const validRecentExpenses = useMemo(() => {
     return dashboardData.recentExpenses.filter(
@@ -346,6 +405,45 @@ export default function HomeScreen() {
                   lastMonthLabel={t('dashboard.lastMonth')}
                 />
 
+                <View style={styles.filterChipsRow}>
+                  <Pressable
+                    style={[
+                      styles.filterChip,
+                      selectedExpenseFilter === 'all' && styles.filterChipActive,
+                    ]}
+                    onPress={() => setSelectedExpenseFilter('all')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedExpenseFilter === 'all' &&
+                          styles.filterChipTextActive,
+                      ]}
+                    >
+                      {t('expenses.all')}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.filterChip,
+                      selectedExpenseFilter === 'withoutExceptional' &&
+                        styles.filterChipActive,
+                    ]}
+                    onPress={() => setSelectedExpenseFilter('withoutExceptional')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedExpenseFilter === 'withoutExceptional' &&
+                          styles.filterChipTextActive,
+                      ]}
+                    >
+                      {t('dashboard.withoutExceptional')}
+                    </Text>
+                  </Pressable>
+                </View>
+
                 {budgetSummary && selectedPeriod === 'thisMonth' && (
                   <BudgetCard
                     key={`budget-card-${locale}`}
@@ -428,20 +526,60 @@ export default function HomeScreen() {
                   currency={currency}
                 />
 
-                {translatedTopCategory && (
-                  <View style={styles.topCategoryCard}>
-                    <Text style={styles.topCategoryLabel}>
-                      {t('dashboard.topCategory')}
-                    </Text>
-                    <Text style={styles.topCategoryName}>
-                      {translatedTopCategory.category}
-                    </Text>
-                    <Text style={styles.topCategoryValue}>
-                      {formatCompactCurrency(translatedTopCategory.amount, currency)} ·{' '}
-                      {translatedTopCategory.share.toFixed(0)}%
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.topCategoryCard}>
+                  <Text style={styles.topCategoryLabel}>
+                    {t('dashboard.topCategories')}
+                  </Text>
+
+                  {topCategories.length === 0 ? (
+                    <View style={styles.topCategoryEmptyState}>
+                      <Text style={styles.topCategoryEmptyText}>
+                        {t('dashboard.noCategoryDataYet')}
+                      </Text>
+                    </View>
+                  ) : (
+                    topCategories.map((category) => (
+                      <View
+                        key={category.category}
+                        style={styles.topCategoryRow}
+                      >
+                        <View style={styles.topCategoryRowHeader}>
+                          <Text style={styles.topCategoryName}>
+                            {category.category}
+                          </Text>
+                          <View style={styles.topCategoryValueGroup}>
+                            <Text style={styles.topCategoryValue}>
+                              {formatCompactCurrency(category.total, currency)} ·{' '}
+                              {category.percentage.toFixed(0)}%
+                            </Text>
+                            <Text
+                              style={[
+                                styles.topCategoryTrend,
+                                category.trend.tone === 'positive' &&
+                                  styles.topCategoryTrendPositive,
+                                category.trend.tone === 'negative' &&
+                                  styles.topCategoryTrendNegative,
+                              ]}
+                            >
+                              {category.trend.label}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.topCategoryTrack}>
+                          <View
+                            style={[
+                              styles.topCategoryFill,
+                              {
+                                width: `${Math.max(category.percentage, 6)}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
@@ -787,6 +925,36 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
+  filterChipsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 20,
+    padding: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  filterChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  filterChipTextActive: {
+    color: colors.textMain,
+  },
   summaryRow: {
     flexDirection: 'row',
     gap: 12,
@@ -843,7 +1011,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   comparisonMain: {
-    fontSize: 20,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '700',
     color: colors.textMain,
     marginBottom: 4,
@@ -865,20 +1034,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
+  topCategoryEmptyState: {
+    paddingVertical: 4,
+  },
+  topCategoryEmptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  topCategoryRow: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  topCategoryRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   topCategoryName: {
-    fontSize: 20,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.textMain,
-    marginBottom: 4,
+  },
+  topCategoryValueGroup: {
+    alignItems: 'flex-end',
+    gap: 2,
   },
   topCategoryValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  topCategoryTrend: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  topCategoryTrendPositive: {
+    color: colors.successText,
+  },
+  topCategoryTrendNegative: {
+    color: colors.danger,
+  },
+  topCategoryTrack: {
+    width: '100%',
+    height: 8,
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  topCategoryFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 999,
   },
   biggestCard: {
     backgroundColor: colors.card,
@@ -910,7 +1123,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   biggestAmount: {
-    fontSize: 22,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '700',
     color: colors.textMain,
     marginBottom: 8,

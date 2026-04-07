@@ -1,5 +1,10 @@
 import { EXPENSE_CATEGORIES } from '../constants/categories';
-import { DashboardPeriod, Expense } from '../types/expense';
+import {
+  DashboardExpenseFilter,
+  DashboardPeriod,
+  Expense,
+} from '../types/expense';
+import { filterExpensesByDashboardFilter } from '../utils/categoryInsights';
 
 type CategoryBreakdownItem = {
   category: string;
@@ -226,19 +231,29 @@ function buildComparisonText(
 
 export function getDashboardData(
   expenses: Expense[],
-  period: DashboardPeriod
+  period: DashboardPeriod,
+  expenseFilter: DashboardExpenseFilter = 'all'
 ): DashboardData {
   const today = new Date();
 
-  const periodExpenses =
+  const rawPeriodExpenses =
     period === 'thisMonth'
       ? getThisMonthPeriodExpenses(expenses, today)
       : getLastMonthPeriodExpenses(expenses, today);
 
-  const previousMonthExpenses =
+  const rawPreviousMonthExpenses =
     period === 'thisMonth'
       ? getComparablePreviousPeriodExpenses(expenses, today)
       : getPreviousFullMonthExpenses(expenses, today);
+
+  const periodExpenses = filterExpensesByDashboardFilter(
+    rawPeriodExpenses,
+    expenseFilter
+  );
+  const previousMonthExpenses = filterExpensesByDashboardFilter(
+    rawPreviousMonthExpenses,
+    expenseFilter
+  );
 
   const sortedPeriodExpenses = sortExpensesByDateDesc(periodExpenses);
 

@@ -10,3 +10,5 @@ export type Expense = {
 };
 
 export type DashboardPeriod = 'thisMonth' | 'lastMonth';
+
+export type DashboardExpenseFilter = 'all' | 'withoutExceptional';
