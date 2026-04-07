@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ab48018a-470b-425e-9344-ee1cc416e4f4"
+      }
+    },
+    "android": {
+      "package": "com.lucas.padin.taloplatform"
+    }
+  }
+}

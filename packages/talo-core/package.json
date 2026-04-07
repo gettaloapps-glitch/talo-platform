@@ -1,0 +1,15 @@
+{
+  "name": "@talo/core",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "dependencies": {
+    "expo-localization": "^55.0.8",
+    "i18n-js": "^4.5.3"
+  }
+}

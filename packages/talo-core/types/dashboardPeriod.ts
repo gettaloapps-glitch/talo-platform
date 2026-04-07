@@ -1,0 +1,1 @@
+export type DashboardPeriod = 'thisMonth' | 'lastMonth';

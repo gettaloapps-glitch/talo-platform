@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+
+# expo
+.expo/
+.expo-shared/
+apps/*/.expo/
+
+# build
+dist/
+build/
+
+# env
+.env
+.env.*
+
+# misc
+.DS_Store
