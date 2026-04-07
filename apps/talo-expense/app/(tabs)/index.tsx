@@ -1066,14 +1066,18 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   topCategoryValue: {
+    minWidth: 84,
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
+    textAlign: 'right',
   },
   topCategoryTrend: {
+    minWidth: 84,
     fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
+    textAlign: 'right',
   },
   topCategoryTrendPositive: {
     color: colors.successText,
