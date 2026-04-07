@@ -242,7 +242,7 @@ export default function SettingsScreen() {
             {t('settings.deviceStorageNote')}
           </Text>
           <Text style={styles.aboutVersion}>
-            {'Talo \u00b7 v1.1'}
+            {'Talo \u00b7 v1.2'}
           </Text>
         </View>
 
