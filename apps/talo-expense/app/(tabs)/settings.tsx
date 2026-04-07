@@ -2,10 +2,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  FlatList,
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -27,6 +27,18 @@ import {
   restoreBackupFile,
 } from '../../src/services/expensesService';
 import { CURRENCY_OPTIONS } from '../../src/constants/currencies';
+
+const ANDROID_CURRENCY_SYMBOLS: Record<CurrencyCode, string> = {
+  USD: '$',
+  EUR: '\u20ac',
+  GBP: '\u00a3',
+  ARS: '$',
+  BRL: 'R$',
+  MXN: '$',
+  CLP: '$',
+  COP: '$',
+  PEN: 'S/',
+};
 
 export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
@@ -64,7 +76,7 @@ export default function SettingsScreen() {
   const getCurrencyOptionText = useCallback(
     (option: (typeof CURRENCY_OPTIONS)[number]) =>
       Platform.OS === 'android'
-        ? `${option.symbol} ${option.code} - ${option.label}`
+        ? `${ANDROID_CURRENCY_SYMBOLS[option.code] ?? option.code} ${option.code} - ${option.label}`
         : `${option.flag} ${option.code} - ${option.label}`,
     []
   );
@@ -72,7 +84,7 @@ export default function SettingsScreen() {
   const getSelectedCurrencyText = useCallback(
     (option: (typeof CURRENCY_OPTIONS)[number]) =>
       Platform.OS === 'android'
-        ? `${option.symbol} ${option.code}`
+        ? `${ANDROID_CURRENCY_SYMBOLS[option.code] ?? option.code} ${option.code}`
         : `${option.flag} ${option.code}`,
     []
   );
@@ -252,37 +264,39 @@ export default function SettingsScreen() {
             <Text style={styles.modalTitle}>{t('settings.selectCurrencyTitle')}</Text>
             <Text style={styles.modalText}>{t('settings.selectCurrencyMessage')}</Text>
 
-            <ScrollView
-              style={styles.currencyList}
-              contentContainerStyle={styles.currencyListContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {CURRENCY_OPTIONS.map((option) => {
-                const isSelected = option.code === currency;
+            <View style={styles.currencyListContainer}>
+              <FlatList
+                data={CURRENCY_OPTIONS}
+                keyExtractor={(item) => item.code}
+                style={styles.currencyList}
+                contentContainerStyle={styles.currencyListContent}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item: option }) => {
+                  const isSelected = option.code === currency;
 
-                return (
-                  <Pressable
-                    key={option.code}
-                    style={[
-                      styles.currencyOption,
-                      isSelected && styles.currencyOptionSelected,
-                    ]}
-                    onPress={() => {
-                      handleCurrencySelect(option.code);
-                    }}
-                  >
-                    <Text
+                  return (
+                    <Pressable
                       style={[
-                        styles.currencyOptionText,
-                        isSelected && styles.currencyOptionTextSelected,
+                        styles.currencyOption,
+                        isSelected && styles.currencyOptionSelected,
                       ]}
+                      onPress={() => {
+                        handleCurrencySelect(option.code);
+                      }}
                     >
-                      {getCurrencyOptionText(option)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                      <Text
+                        style={[
+                          styles.currencyOptionText,
+                          isSelected && styles.currencyOptionTextSelected,
+                        ]}
+                      >
+                        {getCurrencyOptionText(option)}
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
 
             <Pressable
               style={styles.modalSecondaryButton}
@@ -447,8 +461,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  currencyList: {
+  currencyListContainer: {
+    flex: 1,
+    minHeight: 0,
     marginBottom: 16,
+  },
+
+  currencyList: {
+    flex: 1,
   },
 
   currencyListContent: {
