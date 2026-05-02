@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "owner": "lucas.padin",
+    "name": "Talo Subscriptions",
+    "slug": "talo-subscriptions",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "talosubscriptions",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}
