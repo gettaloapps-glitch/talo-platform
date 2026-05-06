@@ -1,7 +1,6 @@
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   colors,
   formatDisplayDate,
@@ -12,8 +11,8 @@ import {
   typography,
 } from '@talo/core';
 import type { CurrencyCode } from '@talo/core';
-import { router } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -29,15 +28,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CATEGORY_OPTIONS } from '../../src/metadata/subscriptionMeta';
-import { addSubscription } from '../../src/storage/subscriptionsStorage';
+import {
+  getSubscriptions,
+  updateSubscription,
+} from '../../src/storage/subscriptionsStorage';
 import type {
   BillingCycle,
+  Subscription,
   SubscriptionCategory,
 } from '../../src/types/subscription';
-
-function createSubscriptionId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 function normalizeAmount(input: string): number | null {
   const normalizedInput = input.trim().replace(/,/g, '.');
@@ -108,8 +107,10 @@ function parseInputDate(input: string) {
   return new Date(year, month - 1, day);
 }
 
-export default function AddScreen() {
+export default function EditSubscriptionScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const amountInputRef = useRef<TextInput>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -118,6 +119,7 @@ export default function AddScreen() {
   const [seatsIncluded, setSeatsIncluded] = useState('');
   const [seatsUsed, setSeatsUsed] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [errors, setErrors] = useState<{
@@ -140,35 +142,10 @@ export default function AddScreen() {
     () => normalizeOptionalDate(nextPaymentDate),
     [nextPaymentDate]
   );
-
   const pickerDate = useMemo(
     () => parseInputDate(nextPaymentDate || getTodayDate()),
     [nextPaymentDate]
   );
-
-  useFocusEffect(
-    useCallback(() => {
-      async function loadCurrency() {
-        const settings = await getSettings();
-
-        setCurrency(settings.currency);
-      }
-
-      void loadCurrency();
-    }, [])
-  );
-
-  function resetForm() {
-    setName('');
-    setAmount('');
-    setBillingCycle('monthly');
-    setCategory('other');
-    setNextPaymentDate('');
-    setSeatsIncluded('');
-    setSeatsUsed('');
-    setErrors({});
-    setShowDatePicker(false);
-  }
 
   function handleOpenDatePicker() {
     amountInputRef.current?.blur();
@@ -204,6 +181,46 @@ export default function AddScreen() {
     setNextPaymentDate('');
     setShowDatePicker(false);
   }
+
+  useEffect(() => {
+    async function loadSubscription() {
+      const [storedSubscriptions, settings] = await Promise.all([
+        getSubscriptions(),
+        getSettings(),
+      ]);
+      const selectedSubscription =
+        storedSubscriptions.find((item) => item.id === id) ?? null;
+
+      setCurrency(settings.currency);
+
+      if (selectedSubscription) {
+        setSubscription(selectedSubscription);
+        setName(selectedSubscription.name);
+        setAmount(String(selectedSubscription.amount));
+        setBillingCycle(selectedSubscription.billingCycle);
+        setCategory(selectedSubscription.category ?? 'other');
+        setNextPaymentDate(
+          selectedSubscription.nextPaymentDate === 'Not set'
+            ? ''
+            : selectedSubscription.nextPaymentDate
+        );
+        setSeatsIncluded(
+          selectedSubscription.seatsIncluded === undefined
+            ? ''
+            : String(selectedSubscription.seatsIncluded)
+        );
+        setSeatsUsed(
+          selectedSubscription.seatsUsed === undefined
+            ? ''
+            : String(selectedSubscription.seatsUsed)
+        );
+      }
+
+      setIsLoading(false);
+    }
+
+    void loadSubscription();
+  }, [id]);
 
   function validateForm() {
     const nextErrors: {
@@ -253,7 +270,7 @@ export default function AddScreen() {
   }
 
   async function handleSave() {
-    if (isSaving) {
+    if (isSaving || subscription === null) {
       return;
     }
 
@@ -272,22 +289,19 @@ export default function AddScreen() {
 
     setIsSaving(true);
 
-    await addSubscription({
-      id: createSubscriptionId(),
+    await updateSubscription({
+      ...subscription,
       name: name.trim(),
       amount: normalizedAmount,
-      currency,
       billingCycle,
       category,
       nextPaymentDate: normalizedNextPaymentDate ?? 'Not set',
       seatsIncluded: normalizedSeatsIncluded,
       seatsUsed: normalizedSeatsUsed,
-      createdAt: new Date().toISOString(),
     });
 
     setIsSaving(false);
-    resetForm();
-    router.replace('/');
+    router.replace('/subscriptions');
   }
 
   return (
@@ -302,14 +316,117 @@ export default function AddScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Add subscription</Text>
+            <Text style={styles.title}>Edit subscription</Text>
             <Text style={styles.subtitle}>
-              Save recurring services locally so they appear on your subscriptions
-              list.
+              Update the recurring payment details saved on this device.
             </Text>
           </View>
 
+          {isLoading ? (
+          <View style={styles.stateCard}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.stateText}>Loading subscription...</Text>
+          </View>
+        ) : subscription === null ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateTitle}>Subscription not found</Text>
+            <Text style={styles.stateText}>
+              It may have been deleted from this device.
+            </Text>
+            <Pressable onPress={() => router.replace('/subscriptions')} style={styles.button}>
+              <Text style={styles.buttonText}>Back to subscriptions</Text>
+            </Pressable>
+          </View>
+        ) : (
           <View style={styles.form}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                autoCapitalize="words"
+                autoFocus
+                onChangeText={setName}
+                onSubmitEditing={() => amountInputRef.current?.focus()}
+                placeholder="Netflix"
+                placeholderTextColor={colors.placeholder}
+                returnKeyType="next"
+                style={[styles.input, errors.name ? styles.inputError : undefined]}
+                value={name}
+              />
+              {errors.name ? (
+                <View style={styles.errorMessage}>
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Amount ({currency})</Text>
+              <TextInput
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                onChangeText={setAmount}
+                onSubmitEditing={Keyboard.dismiss}
+                placeholder="9.99"
+                placeholderTextColor={colors.placeholder}
+                ref={amountInputRef}
+                returnKeyType="next"
+                style={[styles.input, errors.amount ? styles.inputError : undefined]}
+                value={amount}
+              />
+              {errors.amount ? (
+                <View style={styles.errorMessage}>
+                  <Text style={styles.errorText}>{errors.amount}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Billing cycle</Text>
+              <View style={styles.segmentedControl}>
+                <Pressable
+                  onPress={() => setBillingCycle('monthly')}
+                  style={[
+                    styles.segmentButton,
+                    billingCycle === 'monthly'
+                      ? styles.segmentButtonActive
+                      : undefined,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      billingCycle === 'monthly'
+                        ? styles.segmentButtonTextActive
+                        : undefined,
+                    ]}
+                  >
+                    Monthly
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setBillingCycle('yearly')}
+                  style={[
+                    styles.segmentButton,
+                    billingCycle === 'yearly'
+                      ? styles.segmentButtonActive
+                      : undefined,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      billingCycle === 'yearly'
+                        ? styles.segmentButtonTextActive
+                        : undefined,
+                    ]}
+                  >
+                    Yearly
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
             <View style={styles.field}>
               <Text style={styles.label}>Category</Text>
               <View style={styles.categorySelector}>
@@ -349,159 +466,66 @@ export default function AddScreen() {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                autoCapitalize="words"
-                autoFocus
-                onChangeText={setName}
-                onSubmitEditing={() => amountInputRef.current?.focus()}
-                placeholder="Netflix"
-                placeholderTextColor={colors.placeholder}
-                returnKeyType="next"
-                style={[styles.input, errors.name ? styles.inputError : undefined]}
-                value={name}
-              />
-              {errors.name ? (
-                <View style={styles.errorMessage}>
-                  <Text style={styles.errorText}>{errors.name}</Text>
+              <Text style={styles.label}>Next payment date</Text>
+              <Pressable
+                onPress={handleOpenDatePicker}
+                style={[styles.input, errors.date ? styles.inputError : undefined]}
+              >
+                <Text
+                  style={[
+                    styles.dateText,
+                    nextPaymentDate ? undefined : styles.datePlaceholder,
+                  ]}
+                >
+                  {nextPaymentDate ? formatDisplayDate(nextPaymentDate) : 'Not set'}
+                </Text>
+              </Pressable>
+              <Pressable onPress={handleClearDate} style={styles.clearDateButton}>
+                <Text style={styles.clearDateText}>Clear date</Text>
+              </Pressable>
+              {showDatePicker && Platform.OS === 'ios' ? (
+                <View style={styles.iosDatePickerCard}>
+                  <DateTimePicker
+                    display="spinner"
+                    mode="date"
+                    onChange={handleDateChange}
+                    value={pickerDate}
+                  />
+                  <Pressable
+                    onPress={() => setShowDatePicker(false)}
+                    style={styles.iosDatePickerDone}
+                  >
+                    <Text style={styles.iosDatePickerDoneText}>Done</Text>
+                  </Pressable>
                 </View>
               ) : null}
-            </View>
-
-            <View style={styles.amountCycleRow}>
-              <View style={[styles.field, styles.amountField]}>
-                <Text style={styles.label}>Amount ({currency})</Text>
-                <TextInput
-                  inputMode="decimal"
-                  keyboardType="decimal-pad"
-                  onChangeText={setAmount}
-                  onSubmitEditing={Keyboard.dismiss}
-                  placeholder="9.99"
-                  placeholderTextColor={colors.placeholder}
-                  ref={amountInputRef}
-                  returnKeyType="next"
-                  style={[
-                    styles.input,
-                    errors.amount ? styles.inputError : undefined,
-                  ]}
-                  value={amount}
-                />
-              </View>
-
-              <View style={[styles.field, styles.cycleField]}>
-                <Text style={styles.label}>Billing cycle</Text>
-                <View style={styles.segmentedControl}>
-                  <Pressable
-                    onPress={() => setBillingCycle('monthly')}
-                    style={[
-                      styles.segmentButton,
-                      billingCycle === 'monthly'
-                        ? styles.segmentButtonActive
-                        : undefined,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentButtonText,
-                        billingCycle === 'monthly'
-                          ? styles.segmentButtonTextActive
-                          : undefined,
-                      ]}
-                    >
-                      Monthly
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setBillingCycle('yearly')}
-                    style={[
-                      styles.segmentButton,
-                      billingCycle === 'yearly'
-                        ? styles.segmentButtonActive
-                        : undefined,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentButtonText,
-                        billingCycle === 'yearly'
-                          ? styles.segmentButtonTextActive
-                          : undefined,
-                      ]}
-                    >
-                      Yearly
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-            {errors.amount ? (
-              <View style={styles.errorMessage}>
-                <Text style={styles.errorText}>{errors.amount}</Text>
-              </View>
-            ) : null}
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Next payment date</Text>
-            <Pressable
-              onPress={handleOpenDatePicker}
-              style={[styles.input, errors.date ? styles.inputError : undefined]}
-            >
-              <Text
-                style={[
-                  styles.dateText,
-                  nextPaymentDate ? undefined : styles.datePlaceholder,
-                ]}
-              >
-                {nextPaymentDate ? formatDisplayDate(nextPaymentDate) : 'Not set'}
-              </Text>
-            </Pressable>
-            <Pressable onPress={handleClearDate} style={styles.clearDateButton}>
-              <Text style={styles.clearDateText}>Clear date</Text>
-            </Pressable>
-            {showDatePicker && Platform.OS === 'ios' ? (
-              <View style={styles.iosDatePickerCard}>
+              {showDatePicker && Platform.OS === 'android' ? (
                 <DateTimePicker
-                  display="spinner"
+                  display="default"
                   mode="date"
                   onChange={handleDateChange}
                   value={pickerDate}
                 />
-                <Pressable
-                  onPress={() => setShowDatePicker(false)}
-                  style={styles.iosDatePickerDone}
-                >
-                  <Text style={styles.iosDatePickerDoneText}>Done</Text>
-                </Pressable>
-              </View>
-            ) : null}
-            {showDatePicker && Platform.OS === 'android' ? (
-              <DateTimePicker
-                display="default"
-                mode="date"
-                onChange={handleDateChange}
-                value={pickerDate}
-              />
-            ) : null}
-            {errors.date ? (
-              <View style={styles.errorMessage}>
-                <Text style={styles.errorText}>{errors.date}</Text>
-              </View>
-            ) : null}
-          </View>
+              ) : null}
+              {errors.date ? (
+                <View style={styles.errorMessage}>
+                  <Text style={styles.errorText}>{errors.date}</Text>
+                </View>
+              ) : null}
+            </View>
 
             <View style={styles.field}>
               <Text style={styles.label}>Shared plan seats</Text>
-              <View style={styles.seatsRow}>
+              <View style={styles.inlineFields}>
                 <TextInput
                   inputMode="numeric"
                   keyboardType="number-pad"
                   onChangeText={setSeatsIncluded}
-                  placeholder="Included"
+                  placeholder="Seats included"
                   placeholderTextColor={colors.placeholder}
                   style={[
                     styles.input,
-                    styles.seatInput,
+                    styles.inlineInput,
                     errors.seats ? styles.inputError : undefined,
                   ]}
                   value={seatsIncluded}
@@ -510,11 +534,11 @@ export default function AddScreen() {
                   inputMode="numeric"
                   keyboardType="number-pad"
                   onChangeText={setSeatsUsed}
-                  placeholder="Used"
+                  placeholder="Seats used"
                   placeholderTextColor={colors.placeholder}
                   style={[
                     styles.input,
-                    styles.seatInput,
+                    styles.inlineInput,
                     errors.seats ? styles.inputError : undefined,
                   ]}
                   value={seatsUsed}
@@ -527,22 +551,40 @@ export default function AddScreen() {
               ) : null}
             </View>
 
-          <Pressable
-            disabled={isSaving}
-            onPress={handleSave}
-            style={({ pressed }) => [
-              styles.button,
-              pressed ? styles.buttonPressed : undefined,
-              isSaving ? styles.buttonDisabled : undefined,
-            ]}
-          >
-            {isSaving ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.buttonText}>Save subscription</Text>
-            )}
-          </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable
+                disabled={isSaving}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                    return;
+                  }
+
+                  router.replace('/subscriptions');
+                }}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSaving}
+                onPress={handleSave}
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.primaryButton,
+                  pressed ? styles.buttonPressed : undefined,
+                  isSaving ? styles.buttonDisabled : undefined,
+                ]}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.buttonText}>Save changes</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -560,7 +602,7 @@ const styles = StyleSheet.create({
   screen: {
     flexGrow: 1,
     backgroundColor: colors.background,
-    gap: spacing.md,
+    gap: spacing.lg,
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
   },
@@ -583,8 +625,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.xl,
     borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.lg,
+    gap: spacing.lg,
+    padding: spacing.xl,
   },
   field: {
     gap: spacing.sm,
@@ -602,19 +644,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     padding: spacing.xs,
-  },
-  amountCycleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  amountField: {
-    minWidth: 112,
-    width: 128,
-  },
-  cycleField: {
-    flexGrow: 2,
-    minWidth: 160,
   },
   segmentButton: {
     alignItems: 'center',
@@ -637,7 +666,7 @@ const styles = StyleSheet.create({
   categorySelector: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   categoryChip: {
     alignItems: 'center',
@@ -710,14 +739,11 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: '700',
   },
-  seatsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  inlineFields: {
     gap: spacing.sm,
   },
-  seatInput: {
-    flexGrow: 1,
-    minWidth: 108,
+  inlineInput: {
+    width: '100%',
   },
   inputError: {
     backgroundColor: colors.dangerSoft,
@@ -736,13 +762,19 @@ const styles = StyleSheet.create({
     fontSize: typography.caption,
     fontWeight: '600',
   },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   button: {
     alignItems: 'center',
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    marginTop: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.lg,
+  },
+  primaryButton: {
+    flex: 1,
   },
   buttonPressed: {
     opacity: 0.85,
@@ -754,5 +786,40 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.body,
     fontWeight: '600',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+  },
+  secondaryButtonText: {
+    color: colors.textMain,
+    fontSize: typography.body,
+    fontWeight: '600',
+  },
+  stateCard: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.xl,
+  },
+  stateTitle: {
+    color: colors.textMain,
+    fontSize: typography.section,
+    fontWeight: '700',
+  },
+  stateText: {
+    color: colors.textSecondary,
+    fontSize: typography.body,
+    lineHeight: 20,
+    textAlign: 'center',
   },
 });

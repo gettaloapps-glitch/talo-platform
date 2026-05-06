@@ -45,3 +45,18 @@ export async function addSubscription(
     console.log('Error adding subscription', error);
   }
 }
+
+export async function updateSubscription(
+  subscription: Subscription
+): Promise<void> {
+  try {
+    const currentSubscriptions = await getSubscriptions();
+    const nextSubscriptions = currentSubscriptions.map((item) =>
+      item.id === subscription.id ? subscription : item
+    );
+
+    await saveSubscriptions(nextSubscriptions);
+  } catch (error) {
+    console.log('Error updating subscription', error);
+  }
+}
